@@ -6,18 +6,21 @@ const testing = std.testing;
 
 const Duplicate = struct {
     path: []const u8,
-    hash: ?[std.crypto.hash.Sha1.digest_length]u8 = null,
+    hash: [std.crypto.hash.Sha1.digest_length]u8 = undefined,
+    hashed: bool = false,
 };
 
-fn hashFile(f: *Duplicate) !void {
-    if (f.hash != null) {
+fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
+    if (f.hashed) {
         return;
     }
-    const file = try std.fs.cwd().openFile(f.path, .{});
+    const fullPath = try std.fs.path.join(alloc, &.{ root, f.path });
+    defer alloc.free(fullPath);
+    f.hashed = true;
+    const file = try std.fs.cwd().openFile(fullPath, .{});
     defer file.close();
 
     var hasher = std.crypto.hash.Sha1.init(.{});
-
     var buffer: [4096]u8 = undefined;
     while (true) {
         const bytes_read = try file.readAll(&buffer);
@@ -31,9 +34,7 @@ fn hashFile(f: *Duplicate) !void {
 fn deinitMap(alloc: std.mem.Allocator, m: *std.StringHashMap(Duplicate)) void {
     defer m.deinit();
     var iterator = m.iterator();
-    std.debug.print("Remaining:\n", .{});
     while (iterator.next()) |entry| {
-        // std.debug.print("  {s} {s}\n", .{ entry.key_ptr.*, entry.value_ptr.* });
         alloc.free(entry.key_ptr.*);
         alloc.free(entry.value_ptr.*.path);
     }
@@ -48,25 +49,38 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
     var walker = try dir.walk(alloc);
     defer walker.deinit();
 
-    // pub fn next(self: *Walker) !?Walker.Entry
     while (try walker.next()) |entry| {
+        if (entry.kind != .file) {
+            std.debug.print("// ignoring {s} ({any})\n", .{ entry.path, entry.kind });
+            continue;
+        }
         const kc = try alloc.dupe(u8, entry.basename);
+        var tmpd = Duplicate{ .path = try alloc.dupe(u8, entry.path) };
         const me = try seen.getOrPut(kc);
-        // std.debug.print("Working on {s}\n", .{entry.basename});
         if (me.found_existing) {
             defer alloc.free(kc);
             std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
+            try hashFile(alloc, root, me.value_ptr);
+
+            try hashFile(alloc, root, &tmpd);
+            // Ignore files if the hashes don't match
+            if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
+                std.debug.print(" - hashes differ ({x} vs {x})\n", .{ me.value_ptr.*.hash, tmpd.hash });
+                alloc.free(tmpd.path);
+                continue;
+            }
+            // We want to keep the file with the smaller name
             if (std.mem.order(u8, entry.path, me.value_ptr.*.path) == .lt) {
                 std.debug.print(" - new file has lesser name: {s}\n", .{entry.path});
                 try res.append(me.value_ptr.*.path);
-                // alloc.free(me.value_ptr.*);
-                me.value_ptr.* = .{ .path = try alloc.dupe(u8, entry.path) };
+                me.value_ptr.* = tmpd;
             } else {
+                alloc.free(tmpd.path);
                 std.debug.print(" - old file has lesser name: {s}\n", .{me.value_ptr.*.path});
                 try res.append(try alloc.dupe(u8, entry.path));
             }
         } else {
-            me.value_ptr.* = .{ .path = try alloc.dupe(u8, entry.path) };
+            me.value_ptr.* = tmpd;
         }
     }
 }

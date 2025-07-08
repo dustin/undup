@@ -13,11 +13,17 @@ pub fn main() !void {
 
     var torm = std.ArrayList([]const u8).init(allocator);
     defer torm.clearAndFree();
-    try lib.findFiles(allocator, args[1], &torm);
+    var shouldPrint = true;
+    lib.findFiles(allocator, args[1], &torm) catch |err| {
+        std.debug.print("Error finding files: {s}\n", .{@errorName(err)});
+        shouldPrint = false;
+    };
 
     const stdout = std.io.getStdOut().writer();
     for (torm.items) |i| {
-        try stdout.print("{s}\n", .{i});
+        if (shouldPrint) {
+            try stdout.print("{s}\n", .{i});
+        }
         allocator.free(i);
     }
 }
