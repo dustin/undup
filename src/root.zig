@@ -35,6 +35,15 @@ fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
     hasher.final(&f.hash.?);
 }
 
+fn contentEq(alloc: std.mem.Allocator, root: []const u8, a: *Duplicate, b: *Duplicate) !bool {
+    if (a.size != b.size) {
+        return false;
+    }
+    try hashFile(alloc, root, a);
+    try hashFile(alloc, root, b);
+    return std.meta.eql(a.hash, b.hash);
+}
+
 pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList([]const u8)) !void {
     var arena = std.heap.ArenaAllocator.init(alloc);
     defer arena.deinit();
@@ -52,32 +61,27 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
         }
         const kc = try aalloc.dupe(u8, entry.basename);
         const stat = try dir.statFile(entry.path);
-        var tmpd = Duplicate{ .path = try aalloc.dupe(u8, entry.path), .size = stat.size };
+        var tmpd = Duplicate{ .path = entry.path, .size = stat.size };
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer aalloc.free(kc);
-            if (me.value_ptr.*.size != tmpd.size) {
-                tmpd.deinit(aalloc);
+            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });            // Ignore files if the hashes don't match
+            // If these files don't contain the same content, then we will not deduplicate them.
+            if (!try contentEq(alloc, root, me.value_ptr, &tmpd)) {
                 continue;
             }
-            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
-            try hashFile(aalloc, root, me.value_ptr);
-            try hashFile(aalloc, root, &tmpd);
-            std.debug.print("Hashes:\n  {x}\n  {x}\n", .{ me.value_ptr.*.hash.?, tmpd.hash.? });
-            // Ignore files if the hashes don't match
-            if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
-                tmpd.deinit(aalloc);
-                continue;
-            }
-            // We want to keep the file with the smaller name
+            // We have a valid duplicate.  We will keep whichever has a path that sorts lower.
+            // For the intended use cases, files contain ISO8601 dates, so lower is older.
             if (std.mem.order(u8, entry.path, me.value_ptr.*.path) == .lt) {
                 try res.append(me.value_ptr.*.path);
+                me.value_ptr.*.deinit(aalloc);
+                tmpd.path = try aalloc.dupe(u8, tmpd.path);
                 me.value_ptr.* = tmpd;
             } else {
-                aalloc.free(tmpd.path);
                 try res.append(try alloc.dupe(u8, entry.path));
             }
         } else {
+            tmpd.path = try aalloc.dupe(u8, tmpd.path);
             me.value_ptr.* = tmpd;
         }
     }
