@@ -6,6 +6,7 @@ const testing = std.testing;
 
 const Duplicate = struct {
     path: []const u8,
+    size: usize,
     hash: [std.crypto.hash.Sha1.digest_length]u8 = undefined,
     hashed: bool = false,
 };
@@ -54,13 +55,17 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
             continue;
         }
         const kc = try alloc.dupe(u8, entry.basename);
-        var tmpd = Duplicate{ .path = try alloc.dupe(u8, entry.path) };
+        const stat = try dir.statFile(entry.path);
+        var tmpd = Duplicate{ .path = try alloc.dupe(u8, entry.path), .size = stat.size };
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer alloc.free(kc);
+            if (me.value_ptr.*.size != tmpd.size) {
+                alloc.free(tmpd.path);
+                continue;
+            }
             // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
             try hashFile(alloc, root, me.value_ptr);
-
             try hashFile(alloc, root, &tmpd);
             // Ignore files if the hashes don't match
             if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
