@@ -32,18 +32,11 @@ fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
     hasher.final(&f.hash);
 }
 
-fn deinitMap(alloc: std.mem.Allocator, m: *std.StringHashMap(Duplicate)) void {
-    defer m.deinit();
-    var iterator = m.iterator();
-    while (iterator.next()) |entry| {
-        alloc.free(entry.key_ptr.*);
-        alloc.free(entry.value_ptr.*.path);
-    }
-}
-
 pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList([]const u8)) !void {
-    var seen = std.StringHashMap(Duplicate).init(alloc);
-    defer deinitMap(alloc, &seen);
+    var arena = std.heap.ArenaAllocator.init(alloc);
+    defer arena.deinit();
+    const aalloc = arena.allocator();
+    var seen = std.StringHashMap(Duplicate).init(aalloc);
 
     var dir = try std.fs.openDirAbsolute(root, .{ .iterate = true, .access_sub_paths = true });
     defer dir.close();
@@ -54,22 +47,22 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
         if (entry.kind != .file) {
             continue;
         }
-        const kc = try alloc.dupe(u8, entry.basename);
+        const kc = try aalloc.dupe(u8, entry.basename);
         const stat = try dir.statFile(entry.path);
-        var tmpd = Duplicate{ .path = try alloc.dupe(u8, entry.path), .size = stat.size };
+        var tmpd = Duplicate{ .path = try aalloc.dupe(u8, entry.path), .size = stat.size };
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
-            defer alloc.free(kc);
+            defer aalloc.free(kc);
             if (me.value_ptr.*.size != tmpd.size) {
-                alloc.free(tmpd.path);
+                aalloc.free(tmpd.path);
                 continue;
             }
             // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
-            try hashFile(alloc, root, me.value_ptr);
-            try hashFile(alloc, root, &tmpd);
+            try hashFile(aalloc, root, me.value_ptr);
+            try hashFile(aalloc, root, &tmpd);
             // Ignore files if the hashes don't match
             if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
-                alloc.free(tmpd.path);
+                aalloc.free(tmpd.path);
                 continue;
             }
             // We want to keep the file with the smaller name
@@ -77,7 +70,7 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
                 try res.append(me.value_ptr.*.path);
                 me.value_ptr.* = tmpd;
             } else {
-                alloc.free(tmpd.path);
+                aalloc.free(tmpd.path);
                 try res.append(try alloc.dupe(u8, entry.path));
             }
         } else {
