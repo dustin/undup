@@ -51,7 +51,6 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
 
     while (try walker.next()) |entry| {
         if (entry.kind != .file) {
-            std.debug.print("// ignoring {s} ({any})\n", .{ entry.path, entry.kind });
             continue;
         }
         const kc = try alloc.dupe(u8, entry.basename);
@@ -59,24 +58,21 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer alloc.free(kc);
-            std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
+            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
             try hashFile(alloc, root, me.value_ptr);
 
             try hashFile(alloc, root, &tmpd);
             // Ignore files if the hashes don't match
             if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
-                std.debug.print(" - hashes differ ({x} vs {x})\n", .{ me.value_ptr.*.hash, tmpd.hash });
                 alloc.free(tmpd.path);
                 continue;
             }
             // We want to keep the file with the smaller name
             if (std.mem.order(u8, entry.path, me.value_ptr.*.path) == .lt) {
-                std.debug.print(" - new file has lesser name: {s}\n", .{entry.path});
                 try res.append(me.value_ptr.*.path);
                 me.value_ptr.* = tmpd;
             } else {
                 alloc.free(tmpd.path);
-                std.debug.print(" - old file has lesser name: {s}\n", .{me.value_ptr.*.path});
                 try res.append(try alloc.dupe(u8, entry.path));
             }
         } else {
