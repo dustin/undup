@@ -7,17 +7,19 @@ const testing = std.testing;
 const Duplicate = struct {
     path: []const u8,
     size: usize,
-    hash: [std.crypto.hash.Sha1.digest_length]u8 = undefined,
-    hashed: bool = false,
+    hash: ?[std.crypto.hash.Sha1.digest_length]u8 = null,
+
+    fn deinit(self: *Duplicate, alloc: std.mem.Allocator) void {
+        alloc.free(self.path);
+    }
 };
 
 fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
-    if (f.hashed) {
+    if (f.hash != null) {
         return;
     }
     const fullPath = try std.fs.path.join(alloc, &.{ root, f.path });
     defer alloc.free(fullPath);
-    f.hashed = true;
     const file = try std.fs.cwd().openFile(fullPath, .{});
     defer file.close();
 
@@ -29,7 +31,8 @@ fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
         if (bytes_read == 0) break;
         hasher.update(buffer[0..bytes_read]);
     }
-    hasher.final(&f.hash);
+    f.hash = @as([std.crypto.hash.Sha1.digest_length]u8, undefined);
+    hasher.final(&f.hash.?);
 }
 
 pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList([]const u8)) !void {
@@ -54,15 +57,16 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
         if (me.found_existing) {
             defer aalloc.free(kc);
             if (me.value_ptr.*.size != tmpd.size) {
-                aalloc.free(tmpd.path);
+                tmpd.deinit(aalloc);
                 continue;
             }
             // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
             try hashFile(aalloc, root, me.value_ptr);
             try hashFile(aalloc, root, &tmpd);
+            std.debug.print("Hashes:\n  {x}\n  {x}\n", .{ me.value_ptr.*.hash.?, tmpd.hash.? });
             // Ignore files if the hashes don't match
             if (!std.meta.eql(me.value_ptr.*.hash, tmpd.hash)) {
-                aalloc.free(tmpd.path);
+                tmpd.deinit(aalloc);
                 continue;
             }
             // We want to keep the file with the smaller name
