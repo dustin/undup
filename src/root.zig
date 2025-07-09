@@ -23,7 +23,7 @@ fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
     var hasher = std.crypto.hash.Sha1.init(.{});
     var buffer: [4096]u8 = undefined;
     while (true) {
-        const bytes_read = try file.readAll(&buffer);
+        const bytes_read = try file.read(buffer[0..]);
 
         if (bytes_read == 0) break;
         hasher.update(buffer[0..bytes_read]);
