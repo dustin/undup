@@ -4,6 +4,26 @@
 const std = @import("std");
 const testing = std.testing;
 
+pub const Options = struct {
+    verbose: bool = false,
+    remove: bool = false,
+    help: bool = false,
+
+    pub const shorthands = .{
+        .h = "help",
+        .v = "verbose",
+        .r = "remove",
+    };
+
+    pub const meta = .{
+        .option_docs = .{
+            .verbose = "verbose mode",
+            .help = "help help",
+            .remove = "remove duplicates",
+        },
+    };
+};
+
 const Duplicate = struct {
     path: []const u8,
     size: usize,
@@ -42,7 +62,7 @@ fn contentEq(dir: *std.fs.Dir, a: *Duplicate, b: *Duplicate) !bool {
     return std.meta.eql(a.hash, b.hash);
 }
 
-pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList([]const u8)) !void {
+pub fn findFiles(alloc: std.mem.Allocator, opts: Options, dir: *std.fs.Dir, res: *std.ArrayList([]const u8)) !void {
     var arena = std.heap.ArenaAllocator.init(alloc);
     defer arena.deinit();
     const aalloc = arena.allocator();
@@ -61,9 +81,14 @@ pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer aalloc.free(kc);
-            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
+            if (opts.verbose) {
+                std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
+            }
             // If these files don't contain the same content, then we will not deduplicate them.
             if (!try contentEq(dir, me.value_ptr, &tmpd)) {
+                if (opts.verbose) {
+                    std.debug.print("  (content mismatch -- ignoring)\n", .{});
+                }
                 continue;
             }
             // We have a valid duplicate.  We will keep whichever has a path that sorts lower.
@@ -116,14 +141,8 @@ test "findFiles" {
 
     var found = std.ArrayList([]const u8).init(std.testing.allocator);
     defer freeAll(std.testing.allocator, &found);
-    try findFiles(std.testing.allocator, &temp_dir.dir, &found);
+    try findFiles(std.testing.allocator, .{}, &temp_dir.dir, &found);
 
     try testing.expectEqual(found.items.len, 1);
     try testing.expectEqualStrings(found.items[0], "d/a");
-}
-
-pub fn deleteFiles(dir: *std.fs.Dir, files: []const []const u8) !void {
-    for (files) |file| {
-        try dir.deleteFile(file);
-    }
 }
