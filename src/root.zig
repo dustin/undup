@@ -69,7 +69,7 @@ pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList
             // We have a valid duplicate.  We will keep whichever has a path that sorts lower.
             // For the intended use cases, files contain ISO8601 dates, so lower is older.
             if (std.mem.order(u8, entry.path, me.value_ptr.*.path) == .lt) {
-                try res.append(me.value_ptr.*.path);
+                try res.append(try alloc.dupe(u8, me.value_ptr.*.path));
                 me.value_ptr.*.deinit(aalloc);
                 tmpd.path = try aalloc.dupe(u8, tmpd.path);
                 me.value_ptr.* = tmpd;
