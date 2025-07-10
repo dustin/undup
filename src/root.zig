@@ -14,13 +14,11 @@ const Duplicate = struct {
     }
 };
 
-fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
+fn hashFile(dir: *std.fs.Dir, f: *Duplicate) !void {
     if (f.hash != null) {
         return;
     }
-    const fullPath = try std.fs.path.join(alloc, &.{ root, f.path });
-    defer alloc.free(fullPath);
-    const file = try std.fs.cwd().openFile(fullPath, .{});
+    const file = try dir.openFile(f.path, .{});
     defer file.close();
 
     var hasher = std.crypto.hash.Sha1.init(.{});
@@ -35,23 +33,21 @@ fn hashFile(alloc: std.mem.Allocator, root: []const u8, f: *Duplicate) !void {
     hasher.final(&f.hash.?);
 }
 
-fn contentEq(alloc: std.mem.Allocator, root: []const u8, a: *Duplicate, b: *Duplicate) !bool {
+fn contentEq(dir: *std.fs.Dir, a: *Duplicate, b: *Duplicate) !bool {
     if (a.size != b.size) {
         return false;
     }
-    try hashFile(alloc, root, a);
-    try hashFile(alloc, root, b);
+    try hashFile(dir, a);
+    try hashFile(dir, b);
     return std.meta.eql(a.hash, b.hash);
 }
 
-pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList([]const u8)) !void {
+pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList([]const u8)) !void {
     var arena = std.heap.ArenaAllocator.init(alloc);
     defer arena.deinit();
     const aalloc = arena.allocator();
     var seen = std.StringHashMap(Duplicate).init(aalloc);
 
-    var dir = try std.fs.openDirAbsolute(root, .{ .iterate = true, .access_sub_paths = true });
-    defer dir.close();
     var walker = try dir.walk(alloc);
     defer walker.deinit();
 
@@ -65,9 +61,9 @@ pub fn findFiles(alloc: std.mem.Allocator, root: []const u8, res: *std.ArrayList
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer aalloc.free(kc);
-            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });            // Ignore files if the hashes don't match
+            // std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
             // If these files don't contain the same content, then we will not deduplicate them.
-            if (!try contentEq(alloc, root, me.value_ptr, &tmpd)) {
+            if (!try contentEq(dir, me.value_ptr, &tmpd)) {
                 continue;
             }
             // We have a valid duplicate.  We will keep whichever has a path that sorts lower.

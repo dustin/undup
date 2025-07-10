@@ -20,11 +20,12 @@ pub fn main() !void {
 
     var torm = std.ArrayList([]const u8).init(allocator);
     defer freeAll(allocator, &torm);
-    lib.findFiles(allocator, args[1], &torm) catch |err| {
+    var dir = try std.fs.openDirAbsolute(args[1], .{ .iterate = true, .access_sub_paths = true });
+    defer dir.close();
+    lib.findFiles(allocator, &dir, &torm) catch |err| {
         std.debug.print("Error finding files: {s}\n", .{@errorName(err)});
         return;
     };
-
     const stdout = std.io.getStdOut().writer();
     for (torm.items) |i| {
         try stdout.print("{s}\n", .{i});
