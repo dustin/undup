@@ -8,6 +8,12 @@ fn freeAll(allocator: std.mem.Allocator, l: *std.ArrayList([]const u8)) void {
     l.clearAndFree();
 }
 
+fn wait() !void {
+    const stdin = std.io.getStdIn().reader();
+    var lineBuf: [256]u8 = undefined;
+    _ = try stdin.readUntilDelimiterOrEof(&lineBuf, '\n');
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer {
@@ -30,4 +36,8 @@ pub fn main() !void {
     for (torm.items) |i| {
         try stdout.print("{s}\n", .{i});
     }
+    std.debug.print("Shall we delete? (press enter, otherwise ^C)\n", .{});
+    try wait();
+    try lib.deleteFiles(&dir, torm.items);
+    std.debug.print("Deleted {d} files\n", .{torm.items.len});
 }

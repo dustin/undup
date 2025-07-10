@@ -82,3 +82,9 @@ pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList
         }
     }
 }
+
+pub fn deleteFiles(dir: *std.fs.Dir, files: []const []const u8) !void {
+    for (files) |file| {
+        try dir.deleteFile(file);
+    }
+}
