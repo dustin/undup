@@ -83,6 +83,45 @@ pub fn findFiles(alloc: std.mem.Allocator, dir: *std.fs.Dir, res: *std.ArrayList
     }
 }
 
+pub fn freeAll(allocator: std.mem.Allocator, l: *std.ArrayList([]const u8)) void {
+    for (l.items) |i| {
+        allocator.free(i);
+    }
+    l.clearAndFree();
+}
+
+test "findFiles" {
+    // Create a temporary directory for testing
+    var temp_dir = std.testing.tmpDir(.{ .iterate = true, .access_sub_paths = true });
+    defer temp_dir.cleanup();
+
+    const TestData = struct {
+        path: []const u8,
+        data: []const u8,
+    };
+
+    const testData = [_]TestData{
+        .{ .path = "a", .data = "" },
+        .{ .path = "b", .data = "" },
+        .{ .path = "d/a", .data = "" },
+        .{ .path = "d/b", .data = "stuff" },
+    };
+
+    try temp_dir.dir.makeDir("d");
+    for (testData) |t| {
+        const file = try temp_dir.dir.createFile(t.path, .{});
+        defer file.close();
+        _ = try file.write(t.data);
+    }
+
+    var found = std.ArrayList([]const u8).init(std.testing.allocator);
+    defer freeAll(std.testing.allocator, &found);
+    try findFiles(std.testing.allocator, &temp_dir.dir, &found);
+
+    try testing.expectEqual(found.items.len, 1);
+    try testing.expectEqualStrings(found.items[0], "d/a");
+}
+
 pub fn deleteFiles(dir: *std.fs.Dir, files: []const []const u8) !void {
     for (files) |file| {
         try dir.deleteFile(file);

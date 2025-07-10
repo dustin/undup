@@ -1,13 +1,6 @@
 const lib = @import("undup_lib");
 const std = @import("std");
 
-fn freeAll(allocator: std.mem.Allocator, l: *std.ArrayList([]const u8)) void {
-    for (l.items) |i| {
-        allocator.free(i);
-    }
-    l.clearAndFree();
-}
-
 fn wait() !void {
     const stdin = std.io.getStdIn().reader();
     var lineBuf: [256]u8 = undefined;
@@ -25,7 +18,7 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     var torm = std.ArrayList([]const u8).init(allocator);
-    defer freeAll(allocator, &torm);
+    defer lib.freeAll(allocator, &torm);
     var dir = try std.fs.openDirAbsolute(args[1], .{ .iterate = true, .access_sub_paths = true });
     defer dir.close();
     lib.findFiles(allocator, &dir, &torm) catch |err| {
