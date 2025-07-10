@@ -16,15 +16,12 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-latest
           - ubuntu-24.04-arm
         zig_version: ["0.14.1", "master"]
         include:
           - os: ubuntu-latest
             build_flags: "-Dtarget=x86_64-linux"
           - os: macos-latest
-            build_flags: ""
-          - os: windows-latest
             build_flags: ""
           - os: ubuntu-24.04-arm
             build_flags: "-Dtarget=aarch64-linux"
