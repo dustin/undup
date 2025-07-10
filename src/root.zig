@@ -22,6 +22,12 @@ pub const Options = struct {
             .remove = "remove duplicates",
         },
     };
+
+    pub fn debug(o: @This(), comptime format: []const u8, args: anytype) void {
+        if (o.verbose) {
+            std.debug.print(format, args);
+        }
+    }
 };
 
 const Duplicate = struct {
@@ -81,14 +87,10 @@ pub fn findFiles(alloc: std.mem.Allocator, opts: Options, dir: *std.fs.Dir, res:
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer aalloc.free(kc);
-            if (opts.verbose) {
-                std.debug.print("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
-            }
+            opts.debug("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
             // If these files don't contain the same content, then we will not deduplicate them.
             if (!try contentEq(dir, me.value_ptr, &tmpd)) {
-                if (opts.verbose) {
-                    std.debug.print("  (content mismatch -- ignoring)\n", .{});
-                }
+                opts.debug("  (content mismatch -- ignoring)\n", .{});
                 continue;
             }
             // We have a valid duplicate.  We will keep whichever has a path that sorts lower.

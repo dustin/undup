@@ -36,15 +36,13 @@ pub fn main() !u8 {
         for (torm.items) |i| {
             try stdout.print("{s}\n", .{i});
             if (options.options.remove) {
-                if (options.options.verbose) {
-                    std.debug.print("Deleting {s}\n", .{i});
-                }
+                options.options.debug("Deleting {s}\n", .{i});
                 try dir.deleteFile(i);
             }
         }
 
-        if (options.options.remove and options.options.remove) {
-            std.debug.print("Deleted {d} files\n", .{torm.items.len});
+        if (options.options.remove) {
+            options.options.debug("Deleted {d} files\n", .{torm.items.len});
         }
     }
 
