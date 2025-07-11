@@ -87,7 +87,7 @@ pub fn findFiles(alloc: std.mem.Allocator, opts: Options, dir: *std.fs.Dir, res:
         const me = try seen.getOrPut(kc);
         if (me.found_existing) {
             defer aalloc.free(kc);
-            opts.debug("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path }); // Ignore files if the hashes don't match
+            opts.debug("found duplicate filename:\n  {s}\n  {s}\n", .{ entry.path, me.value_ptr.*.path });
             // If these files don't contain the same content, then we will not deduplicate them.
             if (!try contentEq(dir, me.value_ptr, &tmpd)) {
                 opts.debug("  (content mismatch -- ignoring)\n", .{});
