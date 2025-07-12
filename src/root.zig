@@ -30,10 +30,12 @@ pub const Options = struct {
     }
 };
 
+const hash = std.crypto.hash.Sha1;
+
 const Duplicate = struct {
     path: []const u8,
     size: usize,
-    hash: ?[std.crypto.hash.Sha1.digest_length]u8 = null,
+    hash: ?[hash.digest_length]u8 = null,
 
     fn deinit(self: *Duplicate, alloc: std.mem.Allocator) void {
         alloc.free(self.path);
@@ -47,7 +49,7 @@ fn hashFile(dir: *std.fs.Dir, f: *Duplicate) !void {
     const file = try dir.openFile(f.path, .{});
     defer file.close();
 
-    var hasher = std.crypto.hash.Sha1.init(.{});
+    var hasher = hash.init(.{});
     var buffer: [4096]u8 = undefined;
     while (true) {
         const bytes_read = try file.read(buffer[0..]);
@@ -55,7 +57,7 @@ fn hashFile(dir: *std.fs.Dir, f: *Duplicate) !void {
         if (bytes_read == 0) break;
         hasher.update(buffer[0..bytes_read]);
     }
-    f.hash = @as([std.crypto.hash.Sha1.digest_length]u8, undefined);
+    f.hash = @as([hash.digest_length]u8, undefined);
     hasher.final(&f.hash.?);
 }
 
