@@ -20,7 +20,8 @@ jobs:
         zig_version: ["0.15.1", "master"]
         include:
           - os: ubuntu-latest
-            build_flags: "-Dtarget=x86_64-linux"
+            # build_flags: "-Dtarget=x86_64-linux"
+            build_flags: ""
           - os: macos-latest
             build_flags: ""
           - os: ubuntu-24.04-arm
