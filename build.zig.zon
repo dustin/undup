@@ -28,7 +28,7 @@
 
     // Tracks the earliest Zig version that the package considers to be a
     // supported use case.
-    .minimum_zig_version = "0.14.1",
+    .minimum_zig_version = "0.15.1",
 
     // This field is optional.
     // Each dependency must either provide a `url` and `hash`, or a `path`.
@@ -37,8 +37,8 @@
     // internet connectivity.
     .dependencies = .{
         .args = .{
-            .url = "git+https://github.com/ikskuh/zig-args#9425b94c103a031777fdd272c555ce93a7dea581",
-            .hash = "args-0.0.0-CiLiqv_NAAC97fGpk9hS2K681jkiqPsWP6w3ucb_ctGH",
+            .url = "git+https://github.com/ikskuh/zig-args#8ae26b44a884ff20dca98ee84c098e8f8e94902f",
+            .hash = "args-0.0.0-CiLiqojRAACGzDRO7A9dw7kWSchNk29caJZkXuMCb0Cn",
         },
     },
     .paths = .{

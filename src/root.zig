@@ -98,12 +98,12 @@ pub fn findFiles(alloc: std.mem.Allocator, opts: Options, dir: *std.fs.Dir, res:
             // We have a valid duplicate.  We will keep whichever has a path that sorts lower.
             // For the intended use cases, files contain ISO8601 dates, so lower is older.
             if (std.mem.order(u8, entry.path, me.value_ptr.*.path) == .lt) {
-                try res.append(try alloc.dupe(u8, me.value_ptr.*.path));
+                try res.append(aalloc, try aalloc.dupe(u8, me.value_ptr.*.path));
                 me.value_ptr.*.deinit(aalloc);
                 tmpd.path = try aalloc.dupe(u8, tmpd.path);
                 me.value_ptr.* = tmpd;
             } else {
-                try res.append(try alloc.dupe(u8, entry.path));
+                try res.append(aalloc, try alloc.dupe(u8, entry.path));
             }
         } else {
             tmpd.path = try aalloc.dupe(u8, tmpd.path);
@@ -116,7 +116,7 @@ pub fn freeAll(allocator: std.mem.Allocator, l: *std.ArrayList([]const u8)) void
     for (l.items) |i| {
         allocator.free(i);
     }
-    l.clearAndFree();
+    l.clearAndFree(allocator);
 }
 
 test "findFiles" {
@@ -143,7 +143,7 @@ test "findFiles" {
         _ = try file.write(t.data);
     }
 
-    var found = std.ArrayList([]const u8).init(std.testing.allocator);
+    var found = try std.ArrayList([]const u8).initCapacity(std.testing.allocator, 4);
     defer freeAll(std.testing.allocator, &found);
     try findFiles(std.testing.allocator, .{}, &temp_dir.dir, &found);
 
