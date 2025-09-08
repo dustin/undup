@@ -46,19 +46,19 @@ fn hashFile(dir: *std.fs.Dir, f: *Duplicate) !void {
     if (f.hash != null) {
         return;
     }
+    const buflen: usize = 64 * 1024;
+    var rbuf: [buflen]u8 = undefined;
+    var wbuf: [buflen]u8 = undefined;
+
     const file = try dir.openFile(f.path, .{});
     defer file.close();
+    var fr = file.reader(&rbuf);
+    var w = std.Io.Writer.Hashing(hash).init(&wbuf);
 
-    var hasher = hash.init(.{});
-    var buffer: [4096]u8 = undefined;
-    while (true) {
-        const bytes_read = try file.read(buffer[0..]);
+    _ = try fr.interface.streamRemaining(&w.writer);
 
-        if (bytes_read == 0) break;
-        hasher.update(buffer[0..bytes_read]);
-    }
     f.hash = @as([hash.digest_length]u8, undefined);
-    hasher.final(&f.hash.?);
+    w.hasher.final(&f.hash.?);
 }
 
 fn contentEq(dir: *std.fs.Dir, a: *Duplicate, b: *Duplicate) !bool {
